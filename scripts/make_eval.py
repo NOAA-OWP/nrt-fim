@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import logging
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from omegaconf import DictConfig, OmegaConf
 from trainer.datamodules.flood_datamodule import FloodDataModule
 from trainer.evaluation.validate import _pick_checkpoint, forward_full_image_tiled, load_model_from_checkpoint
 from trainer.utils.normalization_methods import denormalize_min_max
-from trainer.utils.utils import save_array_as_gtiff
+from trainer.utils.utils import rewrite_cfg, save_array_as_gtiff
 
 log = logging.getLogger(__name__)
 # Quiet only the credential chatter
@@ -31,7 +32,7 @@ def main(cfg: DictConfig) -> None:
     """
     forward-runs on requested dataset based on what mentioned in eval_config
 
-    :param cfg: configuration file for evaluation (different from congiuration used for training the model
+    :param cfg: configuration file for evaluation (different from configuration used for training the model
     :return: None, saves the outputs into tif files
     """
     run_dir = Path(cfg.eval.run_dir or "")
@@ -43,9 +44,16 @@ def main(cfg: DictConfig) -> None:
     # 1) Load the **original composed config** from that training run
     train_cfg = OmegaConf.load(run_dir / ".hydra" / "config.yaml")
 
+    if cfg["forecast_data_source"]:
+        train_cfg = rewrite_cfg(cfg=train_cfg, key="data_sources", items=cfg["data_sources"])
+        # adding forecast_data_source to train_cfg. we need this when FloodDataModule wants to find
+        # appropriate class to read inputs. Depending on the input type, the reading function is different
+        train_cfg["forecast_data_source"] = True
+        train_cfg["forecast_end_time"] = cfg["inference"]["end_time"]
+
     # Rebuild dataset with training cfg
     dm = FloodDataModule(train_cfg)
-    dm.setup()
+    dm.setup(mode=cfg["eval_mode"])
     # read eval.full_image_eval from cfg; default False
     dm.eval_ds.full_image_eval = bool(OmegaConf.select(cfg, "eval.full_image_eval", default=False))
 
@@ -119,10 +127,16 @@ def main(cfg: DictConfig) -> None:
         master_grid = rioxarray.open_rasterio(eval_loader.dataset.master_path)
         master_crs = master_grid.rio.crs
         if Path(eval_loader.dataset.flood_instances.iloc[idx]["tif_path"]).exists():
+            # UTC timestamp
+            ts = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
             ref_path = eval_loader.dataset.flood_instances.iloc[idx]["tif_path"]
-            file_name = "pred_" + str(Path(ref_path).name)
+            ref_path = str(Path(ref_path).name)  # has .tif
+            file_name = f"pred_{ts}_{ref_path}"
         else:
-            file_name = "pred_" + str(eval_loader.dataset.flood_instances.iloc[idx]["flood_id"]) + ".tif"
+            # UTC timestamp
+            ts = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
+            f_id = str(eval_loader.dataset.flood_instances.iloc[idx]["flood_id"])
+            file_name = f"pred_{ts}_{f_id}.tif"
         out_path = Path(cfg.eval.run_dir) / "preds" / file_name
         out_path.parent.mkdir(parents=True, exist_ok=True)
         # saving the prediction into Tiff file with appropriate crs

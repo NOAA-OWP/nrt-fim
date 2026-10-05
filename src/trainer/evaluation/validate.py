@@ -435,7 +435,7 @@ def forward_full_image_tiled(
                     patch = ds._extract_patch_time_and_space(  # -> np.ndarray (t, h, w) on master grid
                         da, master_tile, start_hourly_idx, end_hourly_idx
                     )
-                    stats_key = VAR_NAME_MAP[name].get("stats_key") or getattr(da, "name", name)
+                    stats_key = VAR_NAME_MAP[name].get("stats_key", None)
                     patch = normalize_min_max(patch, ds.input_stats[stats_key], fix_nan_with="mean")
                     inputs_vars.append(patch)
 

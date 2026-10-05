@@ -1,57 +1,28 @@
-# trainer/io/read_inputs.py
 from __future__ import annotations
-from typing import Dict, Any, Optional, Tuple
 
-import xarray as xr
+import logging
+from typing import Any
+
 import rasterio
-from rasterio.crs import CRS
-from rasterio.warp import transform_bounds
+import xarray as xr
 from omegaconf import DictConfig
+from rasterio.crs import CRS
+from rasterio.errors import CRSError
+from rasterio.warp import transform_bounds
+from rioxarray.exceptions import MissingCRS
 
 from trainer.datasets.registry import VAR_NAME_MAP
-from trainer.utils.geo_utils import infer_crs
+from trainer.utils.geo_utils import _resolve_dynamic_da, _to_crs_obj, infer_crs
 from trainer.utils.utils import resolve_cfg_path
 
-
-
-
-def _resolve_dynamic_da(
-    name: str,
-    ds_by_store: Dict[str, xr.Dataset],
-    var_name_map: Dict[str, Dict[str, Any]] = VAR_NAME_MAP,
-) -> xr.DataArray:
-    """
-    Build the requested dynamic DataArray (with optional .sel()) and
-
-    rename to its stats_key for consistent normalization keys.
-    """
-    meta = var_name_map[name]
-    store_key = meta["store"]
-    var = meta["var"]
-    sel = meta.get("sel") or {}
-    stats_key = meta.get("stats_key", name)
-
-    ds = ds_by_store[store_key]
-    da = ds[var]
-    if sel:
-        da = da.sel(**sel)
-    # give a stable name used by your stats JSON
-    da = da.rename(stats_key)
-    return da
-
-
-def _to_crs_obj(crs_like: Any) -> CRS:
-    """Accept str | rasterio.CRS and return rasterio.CRS."""
-    if isinstance(crs_like, CRS):
-        return crs_like
-    return CRS.from_string(str(crs_like))
+log = logging.getLogger(__name__)
 
 
 def read_selected_inputs(
     cfg: DictConfig,
     compute_bounds: bool = False,
-    var_name_map: Dict[str, Dict[str, Any]] = VAR_NAME_MAP,
-) -> Dict[str, Any]:
+    var_name_map: dict[str, dict[str, Any]] = VAR_NAME_MAP,
+) -> dict[str, Any]:
     """
     Open only the inputs requested in the config and computes the bounds:
 
@@ -69,9 +40,9 @@ def read_selected_inputs(
       union_bounds (optional): (minx, miny, maxx, maxy)  (in input_crs)
     """
     # Use cfg.features.* if explicit lists not provided
-    feats_hourly = sorted(list((cfg.features.get("hourly") or [])))
-    feats_threeh = sorted(list((cfg.features.get("three_hourly") or [])))
-    feats_static = sorted(list((cfg.features.get("static") or [])))
+    feats_hourly = sorted(cfg.features.get("hourly") or [])
+    feats_threeh = sorted(cfg.features.get("three_hourly") or [])
+    feats_static = sorted(cfg.features.get("static") or [])
 
     # Filter out unknown or empty features defensively
     feats_hourly = [f for f in feats_hourly if f in var_name_map]
@@ -79,9 +50,9 @@ def read_selected_inputs(
     feats_static = [f for f in feats_static if f in var_name_map]
 
     # ── Open dynamic datasets per store ────────────────────────────────────────
-    dyn_ds: Dict[str, xr.Dataset] = {}
-    crs_by_store: Dict[str, CRS] = {}
-    dyn_vars: Dict[str, xr.DataArray] = {}
+    dyn_ds: dict[str, xr.Dataset] = {}
+    crs_by_store: dict[str, CRS] = {}
+    dyn_vars: dict[str, xr.DataArray] = {}
     hourly_time = None
     three_hourly_time = None
 
@@ -102,7 +73,7 @@ def read_selected_inputs(
             # infer CRS per store
             try:
                 crs_by_store[store_key] = _to_crs_obj(infer_crs(ds))
-            except Exception:
+            except (MissingCRS, CRSError):
                 crs_by_store[store_key] = CRS.from_epsg(4326)
 
         # choose a canonical working CRS (first store’s), warn if mixed
@@ -110,7 +81,7 @@ def read_selected_inputs(
         input_crs = store_crs_list[0]
 
         # materialize variables and attach their **store-specific** CRS if missing
-        for name in (feats_hourly + feats_threeh):
+        for name in feats_hourly + feats_threeh:
             store_key = var_name_map[name]["store"]
             da = _resolve_dynamic_da(name, dyn_ds, var_name_map=var_name_map)
             if getattr(da.rio, "crs", None) is None:
@@ -127,13 +98,13 @@ def read_selected_inputs(
         input_crs = CRS.from_epsg(4326)
 
     # ── Static paths (don’t open heavy rasters unless computing bounds) ────────
-    static_paths: Dict[str, str] = {}
+    static_paths: dict[str, str] = {}
     for name in feats_static:
         p = resolve_cfg_path(cfg, var_name_map[name]["store"])
         if p:
             static_paths[name] = p
 
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "dyn_ds": dyn_ds,
         "dyn_vars": dyn_vars,
         "crs_by_store": crs_by_store,
@@ -145,8 +116,8 @@ def read_selected_inputs(
 
     # ── Optional bounds per feature (all reported in input_crs) ───────────────
     if compute_bounds:
-        bounds_per_feature: Dict[str, Tuple[float, float, float, float]] = {}
-        union: Optional[Tuple[float, float, float, float]] = None
+        bounds_per_feature: dict[str, tuple[float, float, float, float]] = {}
+        union: tuple[float, float, float, float] | None = None
 
         # dynamic features: compute bounds in their store CRS, transform to input_crs if needed
         for name, da in dyn_vars.items():
@@ -158,10 +129,12 @@ def read_selected_inputs(
                     b = transform_bounds(da_crs, input_crs, *b)
                 bounds_per_feature[name] = b
                 union = (
-                    b if union is None else
-                    (max(union[0], b[0]), max(union[1], b[1]), min(union[2], b[2]), min(union[3], b[3]))
+                    b
+                    if union is None
+                    else (max(union[0], b[0]), max(union[1], b[1]), min(union[2], b[2]), min(union[3], b[3]))
                 )
-            except Exception:
+            except (MissingCRS, CRSError) as e:
+                log.info(f"Failed to compute crs for '{name}' ({store_key}): {e}")
                 pass
 
         # static features: transform to input_crs as needed
@@ -174,10 +147,12 @@ def read_selected_inputs(
                 b = sb if scrs == input_crs else transform_bounds(scrs, input_crs, *sb)
                 bounds_per_feature[name] = b
                 union = (
-                    b if union is None else
-                    (max(union[0], b[0]), max(union[1], b[1]), min(union[2], b[2]), min(union[3], b[3]))
+                    b
+                    if union is None
+                    else (max(union[0], b[0]), max(union[1], b[1]), min(union[2], b[2]), min(union[3], b[3]))
                 )
-            except Exception:
+            except FileNotFoundError as e:
+                log.info(f"{path} was not found as {e}")
                 pass
 
         out["bounds_per_feature"] = bounds_per_feature

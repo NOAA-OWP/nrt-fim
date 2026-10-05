@@ -42,7 +42,7 @@ def training_loop(cfg, nn):
     g = torch.Generator().manual_seed(cfg.seed)
 
     dm = FloodDataModule(cfg, generator=g)  # << pass it in
-    dm.setup()
+    dm.setup(mode="train")
     train_loader = dm.train_dataloader()
 
     optimizer = torch.optim.Adam(nn.parameters(), lr=cfg.train.lr)

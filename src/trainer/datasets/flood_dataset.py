@@ -17,6 +17,7 @@ from rasterio.warp import transform_bounds
 from rioxarray.exceptions import MissingCRS, NoDataInBounds
 from torch.utils.data import Dataset
 
+from trainer.data_prep.read_forecast_inputs import read_selected_forecast_inputs
 from trainer.data_prep.read_inputs import read_selected_inputs
 
 # from trainer.utils.utils import create_master_from_da  # your existing util
@@ -57,7 +58,10 @@ class FloodDataset(Dataset):
         self._interpret_requested_features()
 
         # ---------------- read/prepare inputs (ALL input reading consolidated here) ----------------
-        self.inputs_dict = read_selected_inputs(cfg)
+        if cfg["forecast_data_source"]:
+            self.inputs_dict = read_selected_forecast_inputs(cfg)
+        else:
+            self.inputs_dict = read_selected_inputs(cfg)
 
         # ---------------- read master_grid path ---------------------------------------------------
         self.master_path = _ensure_master_grid(self.cfg, self.inputs_dict)

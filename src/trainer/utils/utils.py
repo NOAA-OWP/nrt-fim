@@ -15,7 +15,7 @@ import torch
 import xarray as xr
 from geocube.api.core import make_geocube
 from matplotlib.colors import LinearSegmentedColormap
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 from rasterio.crs import CRS
 from rasterio.merge import merge
 from rasterio.transform import Affine
@@ -354,6 +354,37 @@ def resolve_cfg_path(cfg: DictConfig, dotted: str) -> str | None:
             return None
         cur = cur[part]
     return str(cur)
+
+
+def rewrite_cfg(cfg: DictConfig, key: str, items) -> DictConfig:
+    """
+    If `items` is a dict: deep-merge into cfg[key], supporting nested + dotted keys.
+
+    Otherwise: replace cfg[key] with `items` (scalar/list/etc.).
+    """
+    # Scalar / list / None => replace outright
+    if not isinstance(items, DictConfig):
+        with open_dict(cfg):
+            cfg[key] = items
+        return cfg
+
+    # Dict => deep-merge (create section if missing or not a mapping)
+    with open_dict(cfg):
+        if not isinstance(cfg.get(key), (dict | DictConfig)):
+            cfg[key] = OmegaConf.create({})
+
+    def _apply(path_prefix: str, obj):
+        if isinstance(obj, DictConfig):
+            for k, v in obj.items():
+                new_path = f"{path_prefix}.{k}" if path_prefix else str(k)
+                _apply(new_path, v)
+        else:
+            # merge=True creates intermediate nodes as needed and respects struct mode
+            with open_dict(cfg):
+                OmegaConf.update(cfg, f"{key}.{path_prefix}", obj, merge=True)
+
+    _apply("", items)
+    return cfg
 
 
 # if __name__ == "__main__":

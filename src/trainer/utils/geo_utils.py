@@ -57,6 +57,38 @@ def infer_crs(obj) -> CRS:
     raise ValueError("No CRS found on object and no usable WKT in attributes.")
 
 
+def _to_crs_obj(crs_like: Any) -> CRS:
+    """Accept str | rasterio.CRS and return rasterio.CRS."""
+    if isinstance(crs_like, CRS):
+        return crs_like
+    return CRS.from_string(str(crs_like))
+
+
+def _resolve_dynamic_da(
+    name: str,
+    ds_by_store: dict[str, xr.Dataset],
+    var_name_map: dict[str, dict[str, Any]],
+) -> xr.DataArray:
+    """
+    Build the requested dynamic DataArray (with optional .sel()) and
+
+    rename to its stats_key for consistent normalization keys.
+    """
+    meta = var_name_map[name]
+    store_key = meta["store"]
+    var = meta["var"]
+    sel = meta.get("sel") or {}
+    stats_key = meta.get("stats_key", name)
+
+    ds = ds_by_store[store_key]
+    da = ds[var]
+    if sel:
+        da = da.sel(**sel)
+    # give a stable name used by your stats JSON
+    da = da.rename(stats_key)
+    return da
+
+
 def extract_floodid(path: str) -> str:
     """Parse the floodID from a path of form .../DFO_<floodID>_<start>_<end>/file.tif"""
     dir_name = os.path.basename(os.path.dirname(path))

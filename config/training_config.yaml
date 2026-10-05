@@ -4,8 +4,8 @@ defaults:
 
 version: 0.1.0
 name: ${version}-f1-mvp
-project_root: /Users/farshidrahmani/GitHub/f1-trainer    # absolute path of root directory --> saves many lines of codes
-
+project_root: "/Users/farshidrahmani/GitHub/f1-trainer"    # absolute path of root directory --> saves many lines of codes
+forecast_data_source: False  # False means retrospective data will be used, True means Forecast Data
 data_sources:
   ## Dynamic inputs paths
   base_pattern_routing: "s3://noaa-nwm-retrospective-3-0-pds/CONUS/zarr/rtout.zarr/"
@@ -19,7 +19,7 @@ data_sources:
   flow_direction: "/Users/farshidrahmani/Dataset/flow_dir/flow_direction.tiff"
   irrigation: "/Users/farshidrahmani/Dataset/irrig/irrigation_2015_2024_f1.tiff"
   surface_extent: "/Users/farshidrahmani/Dataset/surf_ext/surface_extent.tiff"
-  ##
+    ##
   # observation path
   dfo_modis_dir: "/Users/farshidrahmani/Dataset/F1_MODIS_USA"
   dfo_modis_dir_preprocessed: "/Users/farshidrahmani/Dataset/F1_MODIS_USA_perc_regrid"
@@ -36,9 +36,9 @@ master_grids_dir: "/Users/farshidrahmani/Dataset/master_grids_dir"
 
 # Which features to include
 features:
-  hourly:        []  #["precip", "air_temp", "solar_shortwave"]
+  hourly:        [] #"precip"] #, "air_temp", "solar_shortwave"]
   three_hourly:  ["terrain_router", "soil_sm_layer1"] #, "soil_sm_layer2", "soil_sm_layer3", "soil_sm_layer4", "SNOWH", "UGDRNOFF"]
-  static:        ["flow_accumulation", "flow_direction", "irrigation", "surface_extent"]
+  static:        ["flow_accumulation", "flow_direction", "surface_extent" ] #, "irrigation"]
 
 params:
   save_path: ./
@@ -49,11 +49,11 @@ model:
   num_classes: 1
 
 train:
-  batch_size: 5
-  steps_per_epoch: 20   # num_samples = steps_per-epoch * batch_size
+  batch_size: 10
+  steps_per_epoch: 10   # num_samples = steps_per-epoch * batch_size
   rho: 72   # hours
-  No_pixels_x: 128
-  No_pixels_y: 128
+  No_pixels_x: 512
+  No_pixels_y: 512
   lr: 0.001
   epochs: 200
   start_time: 20101001   # YYYYMMDD

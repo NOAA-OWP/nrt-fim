@@ -32,14 +32,16 @@ class FloodDataModule:
         self.train_ds = None
         self.eval_ds = None
 
-    def setup(self):
+    def setup(self, mode: list | str):
         """
         Sets up datasets
 
         :return: None
         """
-        self.train_ds = FloodDataset(self.cfg, split="train")
-        self.eval_ds = FloodDataset(self.cfg, split="eval")
+        if "train" in mode:
+            self.train_ds = FloodDataset(self.cfg, split="train")
+        if ("eval" in mode) or ("user_defined" in mode):
+            self.eval_ds = FloodDataset(self.cfg, split="eval")
 
     def train_dataloader(
         self,

@@ -1,4 +1,4 @@
-# f1_trainer
+# NRT-FIM CNN
 
 <p align="center">
     <img src="docs/img/f1.png" alt="icefabric" width="25%"/>

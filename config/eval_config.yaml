@@ -1,15 +1,15 @@
 
 eval:
   batch_size: 1
-  run_dir: "/Users/farshidrahmani/GitHub/f1-trainer/scripts/runs/0.1.0-f1-mvp/2025-09-03_15-44-13"          # ← override on CLI to a specific training run dir
-  ckpt: "/Users/farshidrahmani/GitHub/f1-trainer/scripts/runs/0.1.0-f1-mvp/2025-09-03_15-44-13/saved_models/_0.1.0-f1-mvp_epoch_1.pt"    # ← optional: path to a specific checkpoint; if None we pick one
+  run_dir: "/efs/edfs-deliveries/pi_7/subcase_1_CNN/f1-trainer/runs/0.1.0-f1-mvp/2025-09-11_23-38-42"          # ← override on CLI to a specific training run dir
+  ckpt: "/efs/edfs-deliveries/pi_7/subcase_1_CNN/f1-trainer/runs/0.1.0-f1-mvp/2025-09-11_23-38-42/saved_models/_0.1.0-f1-mvp_epoch_200.pt"    # ← optional: path to a specific checkpoint; if None we pick one
   output_subdir: eval_${now:%Y-%m-%d_%H-%M-%S}
   num_workers: 0
   full_image_eval: False    # it forward runs the full target image into nn. It needs a big memory though. so it is False for now
   No_pixels_x: 512
   No_pixels_y: 512
 
-device: "mps:0"
+device: "cuda"
 
 ## eval_mode defines where to forward-run the model. It can be:
 ## 1- "train": uses the all observations used in training mode. they list is in Dataset/splits/train.json
@@ -19,7 +19,7 @@ eval_mode: user_defined
 
 ## if eval_mode == user_defined --> the bbox and time will be read from "inference"
 inference:
-  bbox: {"left": -90.32, "bottom": 32.57, "right": -85.24, "top": 37.86}
+  bbox: {"left": -89.0, "bottom": 35.23, "right": -86.0, "top": 39.23}
   crs: EPSG:4326       # this is the crs of the bbox defined in the upper row
   end_time: 2001-12-07T00:00:00    # YYYY-MM-ddTHH:MM:SS     the last hour that data is available to predict the flood
 

@@ -1,0 +1,62 @@
+
+eval:
+  batch_size: 1
+  run_dir: "/Users/farshidrahmani/GitHub/f1-trainer/scripts/runs/0.1.0-f1-mvp/2025-09-18_23-14-45"          # ← override on CLI to a specific training run dir
+  ckpt: "/Users/farshidrahmani/GitHub/f1-trainer/scripts/runs/0.1.0-f1-mvp/2025-09-18_23-14-45/saved_models/_0.1.0-f1-mvp_epoch_1.pt"    # ← optional: path to a specific checkpoint; if None we pick one
+  output_subdir: eval_${now:%Y-%m-%d_%H-%M-%S}
+  num_workers: 0
+  full_image_eval: False    # it forward runs the full target image into nn. It needs a big memory though. so it is False for now
+  No_pixels_x: 512
+  No_pixels_y: 512
+
+device: "mps:0"
+
+## eval_mode defines where to forward-run the model. It can be:
+## 1- "train": uses the all observations used in training mode. they list is in Dataset/splits/train.json
+## 2- "eval": uses the all observations that were not used in training mode. they list is in Dataset/splits/eval.json
+## 3- "user_defined": uses the bbox and time that is defined by the user in the following parts
+eval_mode: user_defined
+
+## if eval_mode == user_defined --> the bbox and time will be read from "inference"
+inference:
+  bbox: {"left": -89.0, "bottom": 35.23, "right": -86.0, "top": 39.23}
+  crs: EPSG:4326       # this is the crs of the bbox defined in the upper row
+  end_time: 2001-12-07T00:00:00    # YYYY-MM-ddTHH:MM:SS     the last hour that data is available to predict the flood
+#  end_time: 2025-01-05T00:00:00
+
+forecast_data_source: False
+## if forecast_data_source == True, the following data_Sources will be used in forward-run, otherwise,
+## the same data_sources in training_config will be used.
+data_sources:
+  ## Dynamic inputs paths for forecast S3 bucket is (default): noaa-nwm-pds
+  base_pattern_routing: "medium_range_blend/nwm.t00z.medium_range_blend.terrain_rt.f240.conus.nc"
+  base_pattern_ldas: "medium_range_blend/nwm.t00z.medium_range_blend.land.f240.conus.nc"
+  base_pattern_precip: "forcing_medium_range/nwm.t00z.medium_range.forcing.f001.conus.nc"
+  base_pattern_air_temp: "forcing_medium_range/nwm.t00z.medium_range.forcing.f001.conus.nc"
+  base_pattern_solar_shortwave: "forcing_medium_range/nwm.t00z.medium_range.forcing.f001.conus.nc"
+  ##
+  # static inputs paths
+  flow_accumulation: "/Users/farshidrahmani/Dataset/flow_accu/flow_accumulation.tiff"
+  flow_direction: "/Users/farshidrahmani/Dataset/flow_dir/flow_direction.tiff"
+  irrigation: "/Users/farshidrahmani/Dataset/irrig/irrigation_2015_2024_f1.tiff"
+  surface_extent: "/Users/farshidrahmani/Dataset/surf_ext/surface_extent.tiff"
+  ##
+  # observation path
+  dfo_modis_dir: "/Users/farshidrahmani/Dataset/F1_MODIS_USA"
+  dfo_modis_dir_preprocessed: "/Users/farshidrahmani/Dataset/F1_MODIS_USA_perc_regrid"
+  ##
+  # training and testing paths. The path to save the train and test split index file
+  index_csv: "/Users/farshidrahmani/Dataset/splits/index_csv.csv"
+  splits_dir: "/Users/farshidrahmani/Dataset/splits/"
+  ##
+  # CONUS inland shape file to find satellite images that have intersection with it. Note that it is not a static input.
+  conus_geom: "/Users/farshidrahmani/Dataset/conus_geom_fix/conus_geom_fix.gpkg"
+
+
+
+# Put eval outputs **under the training run** (clean, discoverable)
+hydra:
+  run:
+    dir: ${eval.run_dir}/${eval.output_subdir}
+  job:
+    chdir: true

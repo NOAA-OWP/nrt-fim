@@ -61,7 +61,7 @@ dependencies = [
   "rioxarray==0.19.0",
   "s3fs==2025.5.1",
   "geocube==0.7.1",
-  "python-dotenv==1.1.0",
+  "python-dotenv==1.2.2",
   "pystac==1.13.0",
   "boto3==1.37.1",
   "click==8.2.1",

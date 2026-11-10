@@ -44,7 +44,7 @@ dependencies = [
   "pandas==2.2.3",
   "cubed-xarray==0.0.7",
   "fiona==1.10.1",
-  "fsspec==2025.5.1",
+  "fsspec==2026.6.0",
   "geodatasets==2024.8.0",
   "geopandas==1.0.1",
   "h5netcdf==1.6.1",
